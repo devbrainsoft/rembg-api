@@ -7,14 +7,13 @@ import io
 
 app = FastAPI(title="RemBG API", version="1.0.0")
 
-# Preload model at startup
 rembg_session = None
 
 @app.on_event("startup")
 async def startup_event():
     global rembg_session
-    print("Loading U2Net model...")
-    rembg_session = new_session("u2net")
+    print("Loading u2netp model...")
+    rembg_session = new_session("u2netp")
     print("Model loaded ✅")
 
 app.add_middleware(
@@ -41,7 +40,11 @@ async def remove_background(file: UploadFile = File(...)):
         contents = await file.read()
         input_image = Image.open(io.BytesIO(contents))
 
-        # Use preloaded session
+        # Resize if too large → saves RAM
+        max_size = 1024
+        if input_image.width > max_size or input_image.height > max_size:
+            input_image.thumbnail((max_size, max_size), Image.LANCZOS)
+
         output_image = remove(input_image, session=rembg_session)
 
         img_byte_arr = io.BytesIO()
