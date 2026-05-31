@@ -1,13 +1,22 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
-from rembg import remove
+from rembg import remove, new_session
 from PIL import Image
 import io
 
 app = FastAPI(title="RemBG API", version="1.0.0")
 
-# Allow Android app to call this API
+# Preload model at startup
+rembg_session = None
+
+@app.on_event("startup")
+async def startup_event():
+    global rembg_session
+    print("Loading U2Net model...")
+    rembg_session = new_session("u2net")
+    print("Model loaded ✅")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -25,19 +34,16 @@ def health():
 
 @app.post("/remove-bg")
 async def remove_background(file: UploadFile = File(...)):
-    # Validate file type
     if file.content_type not in ["image/jpeg", "image/png", "image/webp"]:
         raise HTTPException(status_code=400, detail="Only JPG, PNG, WEBP allowed")
 
     try:
-        # Read image
         contents = await file.read()
         input_image = Image.open(io.BytesIO(contents))
 
-        # Remove background
-        output_image = remove(input_image)
+        # Use preloaded session
+        output_image = remove(input_image, session=rembg_session)
 
-        # Return PNG
         img_byte_arr = io.BytesIO()
         output_image.save(img_byte_arr, format='PNG')
         img_byte_arr.seek(0)
